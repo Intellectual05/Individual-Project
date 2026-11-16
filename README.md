@@ -1,5 +1,6 @@
 # MediFlow ER — Emergency Room & Patient Journey Room Booking System
 
+**Name:** Agamjit Singh (6638261621)
 **Course:** Chula International School of Engineering (ISE) — Vue Web Application Integration Assignment  
 **Tech Stack:** Vue 3 (Vite + Composition API) | Supabase (PostgreSQL & Database Webhooks) | Make.com (AI Agent & Automated Email Routing)
 
