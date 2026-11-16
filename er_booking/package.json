@@ -17,9 +17,9 @@
     "format": "oxfmt src/"
   },
   "dependencies": {
-    "pinia": "^4.0.3",
-    "vue": "rc",
-    "vue-router": "^5.3.1"
+    "@supabase/supabase-js": "^2.119.0",
+    "lucide-vue-next": "^1.0.0",
+    "vue": "rc"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
