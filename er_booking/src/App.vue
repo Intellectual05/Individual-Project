@@ -7,7 +7,7 @@ import NavBar from '@/components/NavBar.vue'
 import StaffSignIn from '@/components/StaffSignIn.vue'
 import { FILTER_ROOM_TYPES } from '@/lib/constants'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-import type { HospitalStaff, NewRoomBooking, RoomBooking } from '@/types'
+import type { HospitalStaff, NewHospitalStaff, NewRoomBooking, RoomBooking } from '@/types'
 
 const currentStaff = ref<HospitalStaff | null>(null)
 const staffList = ref<HospitalStaff[]>([])
@@ -15,11 +15,13 @@ const bookings = ref<RoomBooking[]>([])
 
 const loadingList = ref(false)
 const signInLoading = ref(false)
+const registerLoading = ref(false)
 const refreshing = ref(false)
 const submitting = ref(false)
 const syncingId = ref<string | null>(null)
 
 const signInError = ref<string | null>(null)
+const registerError = ref<string | null>(null)
 const confirmation = ref<string | null>(null)
 const bookingError = ref<string | null>(null)
 
@@ -130,9 +132,77 @@ async function handleEmailSignIn(email: string) {
 
 function handleQuickLogin(staff: HospitalStaff) {
   signInError.value = null
+  registerError.value = null
   currentStaff.value = staff
   persistStaff(staff)
   void fetchBookings()
+}
+
+function handleClearAuthErrors() {
+  signInError.value = null
+  registerError.value = null
+}
+
+function friendlyStaffInsertError(error: { code?: string; message?: string }) {
+  if (error.code === '23505') {
+    if (error.message?.toLowerCase().includes('staff_code')) {
+      return 'That staff code is already in use. Please choose another.'
+    }
+    if (error.message?.toLowerCase().includes('email')) {
+      return 'A staff member with that email already exists.'
+    }
+    return 'This staff profile already exists.'
+  }
+  if (error.code === '23502') {
+    return 'Please fill in every required field.'
+  }
+  return `Registration failed: ${error.message ?? 'unknown error'}`
+}
+
+async function handleRegisterStaff(payload: NewHospitalStaff) {
+  if (!isSupabaseConfigured) return
+  registerLoading.value = true
+  registerError.value = null
+  try {
+    const email = payload.email.toLowerCase()
+    const existingEmail = staffList.value.some((staff) => staff.email.toLowerCase() === email)
+    if (existingEmail) {
+      registerError.value = 'A staff member with that email already exists. Please sign in instead.'
+      return
+    }
+
+    const existingCode = staffList.value.some(
+      (staff) => staff.staff_code.toLowerCase() === payload.staff_code.toLowerCase(),
+    )
+    if (existingCode) {
+      registerError.value = `Staff code "${payload.staff_code}" is already in use. Please choose another.`
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('hospital_staff')
+      .insert(payload)
+      .select()
+      .single()
+
+    if (error || !data) {
+      registerError.value = error
+        ? friendlyStaffInsertError(error)
+        : 'Registration failed. Please try again.'
+      return
+    }
+
+    const staff = data as HospitalStaff
+    currentStaff.value = staff
+    persistStaff(staff)
+    void fetchStaffList()
+    void fetchBookings()
+  } catch (err) {
+    console.error('Staff registration failed:', err)
+    registerError.value = 'Unable to register. Please check your connection and try again.'
+  } finally {
+    registerLoading.value = false
+  }
 }
 
 function handleLogout() {
@@ -140,6 +210,7 @@ function handleLogout() {
   currentStaff.value = null
   bookings.value = []
   signInError.value = null
+  registerError.value = null
   confirmation.value = null
   bookingError.value = null
   roomFilter.value = 'All'
@@ -212,10 +283,14 @@ async function handleSyncNow(bookingId: string) {
     :staff-list="staffList"
     :loading-list="loadingList"
     :sign-in-loading="signInLoading"
+    :register-loading="registerLoading"
     :error="signInError"
+    :register-error="registerError"
     :configured="isSupabaseConfigured"
     @sign-in-by-email="handleEmailSignIn"
     @quick-login="handleQuickLogin"
+    @register="handleRegisterStaff"
+    @clear-errors="handleClearAuthErrors"
   />
 
   <div v-else class="app-shell">

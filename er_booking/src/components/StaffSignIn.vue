@@ -1,27 +1,77 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { AlertTriangle, ArrowRight, HeartPulse, Hospital, LoaderCircle, Mail } from 'lucide-vue-next'
-import type { HospitalStaff } from '@/types'
+import { computed, ref } from 'vue'
+import {
+  AlertTriangle,
+  ArrowRight,
+  BadgeCheck,
+  Building2,
+  HeartPulse,
+  Hospital,
+  LoaderCircle,
+  Mail,
+  Stethoscope,
+  UserRound,
+} from 'lucide-vue-next'
+import type { HospitalStaff, NewHospitalStaff } from '@/types'
 
 defineProps<{
   staffList: HospitalStaff[]
   loadingList: boolean
   signInLoading: boolean
+  registerLoading: boolean
   error: string | null
+  registerError: string | null
   configured: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'sign-in-by-email', email: string): void
   (e: 'quick-login', staff: HospitalStaff): void
+  (e: 'register', payload: NewHospitalStaff): void
+  (e: 'clear-errors'): void
 }>()
 
+const mode = ref<'signin' | 'register'>('signin')
 const email = ref('')
+
+const regFullName = ref('')
+const regStaffCode = ref('')
+const regRole = ref('')
+const regDepartment = ref('')
+const regEmail = ref('')
+
+const canRegister = computed(() => {
+  const filled = [
+    regFullName.value,
+    regStaffCode.value,
+    regRole.value,
+    regDepartment.value,
+    regEmail.value,
+  ].every((value) => value.trim().length > 0)
+  return filled && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.value.trim())
+})
+
+function switchMode(next: 'signin' | 'register') {
+  if (mode.value === next) return
+  mode.value = next
+  emit('clear-errors')
+}
 
 function submitEmail() {
   const value = email.value.trim()
   if (!value) return
   emit('sign-in-by-email', value)
+}
+
+function submitRegistration() {
+  if (!canRegister.value) return
+  emit('register', {
+    staff_code: regStaffCode.value.trim(),
+    full_name: regFullName.value.trim(),
+    role: regRole.value.trim(),
+    department: regDepartment.value.trim(),
+    email: regEmail.value.trim(),
+  })
 }
 
 function initials(name: string) {
@@ -48,11 +98,6 @@ function initials(name: string) {
     </div>
 
     <section class="signin-card card">
-      <h2 class="signin-heading">Hospital Staff Sign-In</h2>
-      <p class="signin-hint">
-        Enter your hospital email, or pick a quick demo profile below to begin.
-      </p>
-
       <div v-if="!configured" class="config-notice">
         <AlertTriangle :size="16" />
         <span>
@@ -62,70 +107,200 @@ function initials(name: string) {
         </span>
       </div>
 
-      <form class="email-form" @submit.prevent="submitEmail">
-        <label class="field-label" for="staff-email">Hospital Email</label>
-        <div class="email-row">
-          <div class="email-input-wrap">
-            <Mail :size="16" class="email-icon" />
-            <input
-              id="staff-email"
-              v-model="email"
-              class="input"
-              type="email"
-              autocomplete="email"
-              placeholder="e.g., nurse.aya@mediflow.health"
-              :disabled="!configured || signInLoading"
-            />
+      <template v-if="mode === 'signin'">
+        <h2 class="signin-heading">Hospital Staff Sign-In</h2>
+        <p class="signin-hint">
+          Enter your hospital email, or pick a quick demo profile below to begin.
+        </p>
+
+        <form class="email-form" @submit.prevent="submitEmail">
+          <label class="field-label" for="staff-email">Hospital Email</label>
+          <div class="email-row">
+            <div class="email-input-wrap">
+              <Mail :size="16" class="email-icon" />
+              <input
+                id="staff-email"
+                v-model="email"
+                class="input"
+                type="email"
+                autocomplete="email"
+                placeholder="e.g., nurse.aya@mediflow.health"
+                :disabled="!configured || signInLoading"
+              />
+            </div>
+            <button
+              class="btn btn-primary"
+              type="submit"
+              :disabled="!configured || signInLoading || !email.trim()"
+            >
+              <LoaderCircle v-if="signInLoading" :size="16" class="spin" />
+              <ArrowRight v-else :size="16" />
+              <span>Sign In</span>
+            </button>
           </div>
+        </form>
+
+        <p v-if="error" class="signin-error" role="alert">
+          <AlertTriangle :size="15" />
+          {{ error }}
+        </p>
+
+        <div class="divider"><span>or</span></div>
+
+        <div class="demo-heading">
+          <span>Quick Staff Demo Login</span>
+          <span class="demo-count">{{ staffList.length }}</span>
+        </div>
+
+        <div v-if="loadingList" class="demo-loading">
+          <LoaderCircle :size="18" class="spin" />
+          <span>Loading staff directory…</span>
+        </div>
+
+        <div v-else class="demo-list">
           <button
-            class="btn btn-primary"
-            type="submit"
-            :disabled="!configured || signInLoading || !email.trim()"
+            v-for="staff in staffList"
+            :key="staff.id"
+            class="staff-row"
+            type="button"
+            :disabled="!configured"
+            @click="emit('quick-login', staff)"
           >
-            <LoaderCircle v-if="signInLoading" :size="16" class="spin" />
-            <ArrowRight v-else :size="16" />
-            <span>Sign In</span>
+            <span class="avatar">{{ initials(staff.full_name) }}</span>
+            <span class="staff-info">
+              <span class="staff-name">{{ staff.full_name }}</span>
+              <span class="staff-meta">{{ staff.role }} · {{ staff.staff_code }}</span>
+            </span>
+            <ArrowRight :size="16" class="staff-arrow" />
+          </button>
+          <p v-if="staffList.length === 0" class="demo-empty">
+            No staff profiles found in the <code>hospital_staff</code> table yet.
+          </p>
+        </div>
+
+        <div class="mode-switch">
+          <span>New to MediFlow ER?</span>
+          <button class="mode-link" type="button" @click="switchMode('register')">
+            <UserRound :size="14" />
+            Register as Hospital Staff
           </button>
         </div>
-      </form>
+      </template>
 
-      <p v-if="error" class="signin-error" role="alert">
-        <AlertTriangle :size="15" />
-        {{ error }}
-      </p>
-
-      <div class="divider"><span>or</span></div>
-
-      <div class="demo-heading">
-        <span>Quick Staff Demo Login</span>
-        <span class="demo-count">{{ staffList.length }}</span>
-      </div>
-
-      <div v-if="loadingList" class="demo-loading">
-        <LoaderCircle :size="18" class="spin" />
-        <span>Loading staff directory…</span>
-      </div>
-
-      <div v-else class="demo-list">
-        <button
-          v-for="staff in staffList"
-          :key="staff.id"
-          class="staff-row"
-          type="button"
-          :disabled="!configured"
-          @click="emit('quick-login', staff)"
-        >
-          <span class="avatar">{{ initials(staff.full_name) }}</span>
-          <span class="staff-info">
-            <span class="staff-name">{{ staff.full_name }}</span>
-            <span class="staff-meta">{{ staff.role }} · {{ staff.staff_code }}</span>
-          </span>
-          <ArrowRight :size="16" class="staff-arrow" />
-        </button>
-        <p v-if="staffList.length === 0" class="demo-empty">
-          No staff profiles found in the <code>hospital_staff</code> table yet.
+      <template v-else>
+        <h2 class="signin-heading">Hospital Staff Registration</h2>
+        <p class="signin-hint">
+          Create a staff profile. Your record will be saved to the
+          <code>hospital_staff</code> database.
         </p>
-      </div>
+
+        <form class="register-form" @submit.prevent="submitRegistration">
+          <div class="field">
+            <label class="field-label" for="reg-full-name">Full Name</label>
+            <div class="register-input-wrap">
+              <UserRound :size="16" class="register-input-icon" />
+              <input
+                id="reg-full-name"
+                v-model="regFullName"
+                class="input"
+                type="text"
+                autocomplete="name"
+                placeholder="e.g., Aya Nakamura"
+                :disabled="!configured || registerLoading"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reg-staff-code">Staff Code</label>
+            <div class="register-input-wrap">
+              <BadgeCheck :size="16" class="register-input-icon" />
+              <input
+                id="reg-staff-code"
+                v-model="regStaffCode"
+                class="input"
+                type="text"
+                placeholder="e.g., RN-204"
+                :disabled="!configured || registerLoading"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reg-role">Role</label>
+            <div class="register-input-wrap">
+              <Stethoscope :size="16" class="register-input-icon" />
+              <input
+                id="reg-role"
+                v-model="regRole"
+                class="input"
+                type="text"
+                placeholder="e.g., Registered Nurse"
+                :disabled="!configured || registerLoading"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reg-department">Department</label>
+            <div class="register-input-wrap">
+              <Building2 :size="16" class="register-input-icon" />
+              <input
+                id="reg-department"
+                v-model="regDepartment"
+                class="input"
+                type="text"
+                placeholder="e.g., Emergency"
+                :disabled="!configured || registerLoading"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reg-email">Hospital Email</label>
+            <div class="register-input-wrap">
+              <Mail :size="16" class="register-input-icon" />
+              <input
+                id="reg-email"
+                v-model="regEmail"
+                class="input"
+                type="email"
+                autocomplete="email"
+                placeholder="e.g., nurse.aya@mediflow.health"
+                :disabled="!configured || registerLoading"
+                required
+              />
+            </div>
+          </div>
+
+          <p v-if="registerError" class="signin-error" role="alert">
+            <AlertTriangle :size="15" />
+            {{ registerError }}
+          </p>
+
+          <button
+            class="btn btn-primary register-btn"
+            type="submit"
+            :disabled="!configured || registerLoading || !canRegister"
+          >
+            <LoaderCircle v-if="registerLoading" :size="16" class="spin" />
+            <UserRound v-else :size="16" />
+            <span>{{ registerLoading ? 'Creating profile…' : 'Create Staff Account' }}</span>
+          </button>
+        </form>
+
+        <div class="mode-switch">
+          <span>Already registered?</span>
+          <button class="mode-link" type="button" @click="switchMode('signin')">
+            <ArrowRight :size="14" />
+            Back to Staff Sign-In
+          </button>
+        </div>
+      </template>
     </section>
   </div>
 </template>
@@ -246,6 +421,66 @@ function initials(name: string) {
 
 .email-input-wrap .input {
   padding-left: 36px;
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.register-input-wrap {
+  position: relative;
+}
+
+.register-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.register-input-wrap .input {
+  padding-left: 36px;
+}
+
+.register-btn {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 15px;
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.mode-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mode-link:hover {
+  color: var(--teal);
+  text-decoration: underline;
 }
 
 .signin-error {

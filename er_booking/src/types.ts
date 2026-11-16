@@ -7,6 +7,14 @@ export interface HospitalStaff {
   email: string
 }
 
+export interface NewHospitalStaff {
+  staff_code: string
+  full_name: string
+  role: string
+  department: string
+  email: string
+}
+
 export interface JourneyLog {
   id: string
   created_at: string

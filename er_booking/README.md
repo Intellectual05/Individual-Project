@@ -9,6 +9,9 @@ handoff trail powered by a **Make.com AI Agent webhook**.
 - **Staff sign-in & session gate** — sign in with a hospital email, or use a
   one-click "Quick Staff Demo Login" list fetched live from `hospital_staff`.
   The session persists in `localStorage` (`mediflow_staff`).
+- **Hospital staff self-registration** — register as a new staff member from the
+  sign-in screen; the profile is validated (email and staff code uniqueness) and
+  inserted into `hospital_staff`, then the new member is signed in automatically.
 - **Patient Journey Room Booking form** — quick-select journey templates
   (*Urgent Appendectomy*, *Acute Trauma Triage*, *Post-Op ICU Transfer*), full
   clinical fields, and a booking-time picker that defaults to now.
